@@ -8,6 +8,7 @@ import os
 import shutil
 import yaml
 import git
+import collections
 
 
 class _MrRepoDirAction(Action):
@@ -165,7 +166,7 @@ class Repossesser(object):
         # --all to show all repos (currently available or not)
         update_parser.set_defaults(func=self.update_command)
 
-        for sp in subparsers.choices.values():
+        for sp in list(subparsers.choices.values()):
             sp._config_file_name = self._config_file_name
             sp.add_argument('--dir', '-d', dest="dir", default='.',
                     help='The Mr. Repo directory being worked on.',
@@ -189,7 +190,7 @@ class Repossesser(object):
 
     def _debug(self, debugging_info):
         if self.verbose:
-            print("DEBUG: " + str(debugging_info))
+            print(("DEBUG: " + str(debugging_info)))
 
     @classmethod
     def _get_repo(cls, apath):
@@ -203,8 +204,8 @@ class Repossesser(object):
     def find_repos(cls, start_path, max_depth=4):
         found_repos = []
         if max_depth >= 0:
-            (base_path, directories, filenames) = os.walk(start_path,
-                    followlinks=True).next()
+            (base_path, directories, filenames) = next(os.walk(start_path,
+                    followlinks=True))
             for directory in directories:
                 directory = os.path.join(start_path, directory)
                 directory_repo = cls._get_repo(directory)
@@ -251,8 +252,8 @@ class Repossesser(object):
         self.config_file.seek(0)
         self.config = yaml.load(self.config_file)
         self.repo_file.seek(0)
-        self.repos = filter(self.is_controlled_repo, [repo.rstrip() for repo in
-            self.repo_file.readlines()])
+        self.repos = list(filter(self.is_controlled_repo, [repo.rstrip() for repo in
+            self.repo_file.readlines()]))
         if check:
             self.check_config()
 
@@ -264,15 +265,15 @@ class Repossesser(object):
             self.read_config()
 
         #Check that self.repos is a list of strings
-        repos_ok = isinstance(self.repos, list) and len(filter(lambda x: not \
-                isinstance(x, str), self.repos)) == 0
+        repos_ok = isinstance(self.repos, list) and len([x for x in self.repos if not \
+                isinstance(x, str)]) == 0
 
         #Check to make sure that each entry in config has valid keys/values
         config_ok = isinstance(self.config, dict)
         if config_ok:
             try:
-                config_ok = filter(lambda x: isinstance(x[0], str) and
-                        isinstance(x[1], dict), self.config)
+                config_ok = [x for x in self.config if isinstance(x[0], str) and
+                        isinstance(x[1], dict)]
             except:
                 config_ok = False
 
@@ -302,16 +303,16 @@ class Repossesser(object):
                 self.args.dir = _MrRepoDirAction.check_dir(self.args.dir,
                         self._config_file_name, self.is_init)
         except ArgumentTypeError as inst:
-            print(inst.message)
-            print(str(self.args))
+            print((inst.message))
+            print((str(self.args)))
             exit(2)
 
     def is_controlled_repo(self, repo_str):
         """Function returns true if repo_str is a Mr. Repo controlled repo."""
-        return repo_str in self.config.get('repos').keys()
+        return repo_str in list(self.config.get('repos').keys())
 
     def execute(self):
-        if callable(self.args.func):
+        if isinstance(self.args.func, collections.Callable):
             result = self.args.func()
         else:
             print("INTERNAL ERROR: Couldn't parse arguments!")
@@ -405,22 +406,21 @@ class Repossesser(object):
         # the unavailable flag.
         if hasattr(self.args, 'unavailable') and self.args.unavailable:
             # Unavailable means it is in the config, but not in self.repos.
-            repos = dict(filter(lambda x: x[0] not in self.repos,
-                repos.items()))
+            repos = dict([x for x in list(repos.items()) if x[0] not in self.repos])
         elif not (hasattr(self.args, 'all') and self.args.all):
             # The default, filter so that only available repos get through
-            repos = dict(filter(lambda x: x[0] in self.repos, repos.items()))
+            repos = dict([x for x in list(repos.items()) if x[0] in self.repos])
 
         max_repo_length = 0
-        for key in repos.keys():
+        for key in list(repos.keys()):
             new_len = len(key)
             if new_len > max_repo_length:
                 max_repo_length = new_len
 
         return '\n'.join([str(key.ljust(max_repo_length) + " - [%s] %s" % \
                 (item['type'], ', '.join(["%s: %s" % (name, value) for name,
-                    value in filter(lambda x: x[0] != 'type', item.items())])))
-                for key, item in repos.items()])
+                    value in [x for x in list(item.items()) if x[0] != 'type']])))
+                for key, item in list(repos.items())])
 
     def get_command(self):
         """Get a repository defined in the Mr. Repo repository, but not
@@ -484,17 +484,15 @@ class Repossesser(object):
         """Interprets Mr. Repo controlled directory and automatically updates
         tracking files based on its findings."""
         start_len = len(self.repos)
-        repos = filter(lambda x: not self.is_controlled_repo(x),
-                self.find_repos(self.args.dir if not hasattr(self.args, 'path')
-                    else self.args.path))
+        repos = [x for x in self.find_repos(self.args.dir if not hasattr(self.args, 'path')
+                    else self.args.path) if not self.is_controlled_repo(x)]
 
         if hasattr(self.args, "current") and self.args.current:
             # Unavailable means it is in the config, but not in self.repos.
-            repos = dict(filter(lambda x: x[0] in self.repos,
-                repos.items()))
+            repos = dict([x for x in list(repos.items()) if x[0] in self.repos])
 
         # Add all of the repos
-        map(self.add_command, repos)
+        list(map(self.add_command, repos))
         difference = len(self.repos) - start_len
         if difference > 0:
             success_str = "Successfully added %d new repositories." % \

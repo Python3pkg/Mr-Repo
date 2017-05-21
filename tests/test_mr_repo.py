@@ -188,8 +188,8 @@ class RepossesserStories(TestCase):
         def config_has_new_repo(new_config, old_config):
             """Test whether config has a new repository called %s.""" % \
                     new_repo_name
-            world.assertIn(new_repo_name, new_config['repos'].keys())
-            world.assertNotIn(new_repo_name, old_config['repos'].keys())
+            world.assertIn(new_repo_name, list(new_config['repos'].keys()))
+            world.assertNotIn(new_repo_name, list(old_config['repos'].keys()))
         return config_has_new_repo
 
     @classmethod
